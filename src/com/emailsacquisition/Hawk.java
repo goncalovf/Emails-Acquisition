@@ -1,4 +1,4 @@
-package com.test;
+package com.emailsacquisition;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -9,13 +9,13 @@ import java.net.URI;
 
 public class Hawk {
 
-    public static Document connect_to( String currentUrl ) {
+    public static Document parse_html( String url ) {
         try {
-            Document webpage = Jsoup.connect( currentUrl ).get();
-            System.out.println("Connected to " + currentUrl);
+            Document webpage = Jsoup.connect(url).get();
+            System.out.println("Connected to " + url);
             return webpage;
         } catch ( Exception noConnection ) {
-            System.out.println("Could not connect to " + currentUrl);
+            System.out.println("Could not connect to " + url);
             noConnection.printStackTrace();
             return null;
         }
@@ -30,7 +30,7 @@ public class Hawk {
                 System.out.println("Opened " + currentUrl);
             } catch ( Exception noConnection ) {
                 System.out.println("Could not open " + currentUrl);
-                noConnection.printStackTrace();
+                // noConnection.printStackTrace();
             }
         } catch ( Exception URISyntaxException) {
             System.out.println("Something wrong with url: " + currentUrl);
@@ -38,16 +38,27 @@ public class Hawk {
 
     }
 
-    public static String get_file_URL( Document webpage ) {
+    public static String get_cv_URL( String profileUrl ) {
+        Document webpage = parse_html(profileUrl);
         try {
             Elements cvButton = webpage.getElementsByClass("button warning");
             String onClickString = cvButton.attr("onclick");
-            String fileURL = onClickString.substring(onClickString.indexOf("('") + 2, onClickString.indexOf("','"));
-            System.out.println("Found file with link to " + fileURL);
-            return fileURL;
-        } catch ( Exception noButton ) {
-            System.out.println("Could not find button.");
+            try {
+                String cvUrl = onClickString.substring(onClickString.indexOf("('") + 2, onClickString.indexOf("','"));
+                System.out.println("Found file with link to " + cvUrl);
+                return cvUrl;
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+            }
+        } catch ( Exception e ) {
+            System.out.println(e.getMessage());
         }
         return "Error";
     }
+
+    public static void print_results_title( Document webpage ) {
+        String resultsTitle = webpage.select("span#results-title").text();
+        System.out.println(resultsTitle);
+    }
+
 }
