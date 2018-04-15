@@ -11,21 +11,21 @@ public class Main {
         Set<String> profilesCrawled = new HashSet<>();
         Set<String> cvUrls = new HashSet<>();
         String[] locations = {"lisboa"};
-        String[] subjects = {"Matemática Pura"};
+        String[] subjects = {"Matemática"};
         for (String location : locations) {
             for (String subject : subjects) {
                 String currentUrl = "https://www.explicas.me/index.php?op=explicadores&" + "local=" + location + "&disciplina=" + subject;
-                List<String> profileUrls = Spider.get_profile_pages_urls(currentUrl);
-                for ( String profileUrl : profileUrls ) {
-                    if (profilesCrawled.contains(profileUrl)) {
-                        System.out.println("Profile already crawled.");
-                        continue;
-                    } else {
-                        profilesCrawled.add(profileUrl);
-                        String cvUrl = Hawk.get_cv_URL(profileUrl);
-                        cvUrls.add(cvUrl);
-                    }
-                }
+                Spider.get_profile_pages_urls(currentUrl);
+                // for ( String profileUrl : profileUrls ) {
+                //     if (profilesCrawled.contains(profileUrl)) {
+                //         System.out.println("Profile already crawled.");
+                //         continue;
+                //     } else {
+                //         profilesCrawled.add(profileUrl);
+                //         // String cvUrl = Spider.get_cv_URL(profileUrl);
+                //         // cvUrls.add(cvUrl);
+                //     }
+                // }
 
                 // Hawk.print_results_title( webpage );
             }

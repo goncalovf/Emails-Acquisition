@@ -8,18 +8,28 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.Wait;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 
 public class Spider {
-    public static List<String> get_profile_pages_urls(String currentUrl) {
+    public static void get_profile_pages_urls(String currentUrl) {
         System.setProperty("webdriver.chrome.driver","C:\\Users\\gonca\\IdeaProjects\\exe\\chromedriver.exe");      // Get ChromeDriver
         WebDriver chrome = new ChromeDriver();
         chrome.get(currentUrl);
+
+        /*
+         * Page of profile listing
+         */
+        String basePage = chrome.getWindowHandle();
 
         /*
          * When subject is available in different levels of education, a modal appears. Close it
@@ -37,6 +47,22 @@ public class Spider {
                 .pollingEvery(Duration.ofSeconds(1))
                 .ignoring(NoSuchElementException.class)
                 .ignoring(StaleElementReferenceException.class);
+
+        /*
+         * Hide zendesk because it opens automatically (don't know why) and puts itself in front of page list options, blocking its view and executable actions
+         */
+        WebElement zendesk = wait.until(new Function<WebDriver, WebElement>() {
+            public WebElement apply(WebDriver chrome) {
+                return chrome.findElement(By.cssSelector("div[data-test-id='ChatWidgetButton']"));
+            }
+        });
+        ((JavascriptExecutor)chrome).executeScript("arguments[0].style.visibility='hidden'", zendesk);
+
+        /*
+         * Hide notice of cookies because it will put itself in front of "Search profile" buttons (links to profiles), disabling them for clicking
+         */
+        WebElement chookiesNotice = chrome.findElement(By.cssSelector("body div:nth-child(3)"));
+        ((JavascriptExecutor)chrome).executeScript("arguments[0].style.visibility='hidden'", chookiesNotice);
 
         /*
          * Expand search criteria, which are sliders
@@ -61,16 +87,6 @@ public class Spider {
         WebElement pageSelectBox = null;
         boolean moreThanOnePage = chrome.findElements(By.cssSelector("ul.select-clone.custom-list li")).size() > 0;
         if (moreThanOnePage) {
-            /*
-             * Hide zendesk because it opens automatically (don't know why) and puts itself in front of page list options, blocking its view and executable actions
-             */
-            WebElement zendesk = wait.until(new Function<WebDriver, WebElement>() {
-                public WebElement apply(WebDriver chrome) {
-                    return chrome.findElement(By.cssSelector("div[data-test-id='ChatWidgetButton']"));
-                }
-            });
-            ((JavascriptExecutor)chrome).executeScript("arguments[0].style.visibility='hidden'", zendesk);
-
             listPagesCount = chrome.findElements(By.cssSelector("ul.select-clone.custom-list li")).size();
             pageSelectBox = chrome.findElement(By.cssSelector("div.properties-listing-footer.clearfix span.select-box"));
 
@@ -81,9 +97,9 @@ public class Spider {
         System.out.println("Number of pages: " + listPagesCount);
 
         /*
-         * Get urls to profile pages
+         * MAIN LOOP: for each profile listed, open it in new window, get Url to CV, while navigating through profile list pages
          */
-        List<String> profileUrls = new ArrayList<String>();
+        Set<String> cvUrls = new HashSet<>();
         for (int k = 1; k <= listPagesCount; k++) {
             /*
              * Navigate to next profile list page
@@ -93,7 +109,7 @@ public class Spider {
                 openPageSelectBox.moveToElement(pageSelectBox).click().perform();
                 try {
                     Thread.sleep(2000);     // I cannot see condition that could be defined in this case
-                } catch (InterruptedException e){
+                } catch (InterruptedException e) {
                     System.out.println("Did not sleep.");
                 }
                 WebElement pageListItem = chrome.findElement(By.cssSelector("span.select-box li[data-page='" + k + "']"));
@@ -101,29 +117,89 @@ public class Spider {
                 clickPageListItem.moveToElement(pageListItem).click().perform();
                 try {
                     Thread.sleep(3500);     // I cannot see condition that could be defined in this case
-                } catch (InterruptedException e){
+                } catch (InterruptedException e) {
                     System.out.println("Did not sleep.");
                 }
             }
             /*
-             * Get links to profiles listed on page
+             * Get links to profile Urls
              */
             int profilesCount = chrome.findElements(By.cssSelector("ul#results_list li")).size();
             System.out.println("Profiles in page: " + profilesCount);
             for (int m = 1; m <= profilesCount; m++) {
-                String profileUrlElementSelector = String.format("ul#results_list li:nth-child(%d) a", m);      // Needs to be out of function
-                String profileUrl = wait.until(new Function<>() {
-                    public String apply(WebDriver chrome) {
-                        WebElement profileUrlElement = chrome.findElement(By.cssSelector(profileUrlElementSelector));
-                        return profileUrlElement.getAttribute("href");
+                /*
+                 * Open profile page on new window
+                 */
+                String openProfileButtonSelector = String.format("ul#results_list li:nth-child(%d) button.button.submit-btn.search-profile-button", m);     // Needs to be out of function
+                Boolean openedProfile = wait.until(new Function<>() {
+                    public Boolean apply(WebDriver chrome) {
+                        WebElement openProfileButton = chrome.findElement(By.cssSelector(openProfileButtonSelector));
+                        Actions openProfile = new Actions(chrome);
+                        openProfile.moveToElement(openProfileButton).keyDown(Keys.SHIFT).click(openProfileButton).keyUp(Keys.SHIFT).build().perform();
+
+                        /*
+                         * Focus chrome driver on new window
+                         */
+                        Set<String> tabs_Set = chrome.getWindowHandles();
+                        List<String> tabs_List = new ArrayList<String>(tabs_Set);
+                        chrome.switchTo().window(tabs_List.get(1));
+
+                        return true;
                     }
                 });
-                profileUrls.add(profileUrl);
+
+                if(openedProfile) {
+                    /*
+                     * Wait for page to load
+                     */
+                    new WebDriverWait(chrome, 15).until(
+                            webDriver -> ((JavascriptExecutor) webDriver).executeScript("return document.readyState").equals("complete"));
+
+                    try {
+                        String cvOnClick = chrome.findElement(By.cssSelector("button.button.warning")).getAttribute("onclick");
+                        String cvUrl = cvOnClick.substring(cvOnClick.indexOf("('") + 2, cvOnClick.indexOf("','"));
+                        System.out.println("Found file with link to " + cvUrl);
+                        cvUrls.add(cvUrl);
+                    } catch (Exception e) {
+                        System.out.println("No CV found here.");
+                    }
+                    chrome.close();
+                    chrome.switchTo().window(basePage);
+                    // profileUrls.add(profileUrl);
+                    // Hawk.get_cv_URL(profileUrl);
+                } else {
+                    System.out.println("Could not open profile page.");
+                }
             }
+            System.out.println("CVs caught: " + cvUrls);
         }
-        System.out.println("List of profile urls: " + profileUrls);
-        return profileUrls;
+        // System.out.println("List of profile urls: " + profileUrls);
+        // chrome.close();
+        // return profileUrls;
     }
+
+
+
+    public static String get_cv_URL( String profileUrl ) {
+        System.setProperty("webdriver.chrome.driver","C:\\Users\\gonca\\IdeaProjects\\exe\\chromedriver.exe");      // Get ChromeDriver
+        WebDriver chrome = new ChromeDriver();
+        chrome.get(profileUrl);
+        // try {
+        //     String cvOnClick = chrome.findElement(By.cssSelector("button.button.warning")).getAttribute("onclick");
+        //     String cvUrl = cvOnClick.substring(cvOnClick.indexOf("('") + 2, cvOnClick.indexOf("','"));
+        //     System.out.println("Found file with link to " + cvUrl);
+        //     chrome.close();
+        //     return cvUrl;
+        // } catch (Exception e) {
+        //     System.out.println(e.getMessage());
+        //     chrome.close();
+        //     return "Did nor find button here";
+        // }
+        return "Whatever";
+    }
+
+
+
 
     /**
      *  get_profile_links works, but now we're using selenium to get profile urls since we have to use javascript to manipulate search criteria and list navigation
