@@ -19,7 +19,7 @@ public class SQLiteJDBC {
         }
     }
 
-    public static void insertToDB( String recordType, String[] recordData) {
+    public static void insertToDB( String recordType, Integer queryID, String[] recordData) {
         Connection c = null;
         Statement stmt = null;
         String rowToBeInserted;
@@ -31,11 +31,11 @@ public class SQLiteJDBC {
             String profileUrl   = recordData[4];
             String cvUrl        = recordData[5];
             String email        = recordData[6];
-            rowToBeInserted = String.format("('%s', '%s', '%s', '%s', '%s', '%s', '%s');", tutorType, fullName, firstName, lastName, profileUrl, cvUrl, email);
+            rowToBeInserted = String.format("(%d, '%s', '%s', '%s', '%s', '%s', '%s', '%s');", queryID, tutorType, fullName, firstName, lastName, profileUrl, cvUrl, email);
         } else {
             String location     = recordData[0];
             String subject      = recordData[1];
-            rowToBeInserted = String.format("('%s', '%s');", location, subject);
+            rowToBeInserted = String.format("(%d, '%s', '%s');", queryID, location, subject);
         }
         try {
             Class.forName("org.sqlite.JDBC");
