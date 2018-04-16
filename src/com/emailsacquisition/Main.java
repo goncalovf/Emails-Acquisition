@@ -1,7 +1,6 @@
 package com.emailsacquisition;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 public class Main {
@@ -11,11 +10,18 @@ public class Main {
         Set<String> profilesCrawled = new HashSet<>();
         Set<String> cvUrls = new HashSet<>();
         String[] locations = {"lisboa"};
-        String[] subjects = {"Matemática"};
+        String[] subjects = {"microeconomia"};
         for (String location : locations) {
             for (String subject : subjects) {
+
+                /*
+                 * Insert query data into database
+                 */
+                String[] recordData = {location, subject};
+                SQLiteJDBC.insertToDB("queries", recordData);
+
                 String currentUrl = "https://www.explicas.me/index.php?op=explicadores&" + "local=" + location + "&disciplina=" + subject;
-                Spider.get_profile_pages_urls(currentUrl);
+                Spider.get_cv_emails(currentUrl);
                 // for ( String profileUrl : profileUrls ) {
                 //     if (profilesCrawled.contains(profileUrl)) {
                 //         System.out.println("Profile already crawled.");
@@ -26,9 +32,7 @@ public class Main {
                 //         // cvUrls.add(cvUrl);
                 //     }
                 // }
-
-                // Hawk.print_results_title( webpage );
-            }
-        }
+             }
+         }
     }
 }

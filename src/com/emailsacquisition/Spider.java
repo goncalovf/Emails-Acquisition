@@ -10,8 +10,6 @@ import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.awt.*;
-import java.awt.event.KeyEvent;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -19,17 +17,46 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+/************************************************************************************************
+ ************************************************************************************************
+ *
+ *              *****   ***   ***********   *****   ***   ********     **********
+ *              ******  ***   ***     ***   ******  ***   ***    ***   ***    ***
+ *              *** *** ***   ***     ***   *** *** ***   ***    ***   ***    ***
+ *              ***  ******   ***********   ***  ******   ***    ***   ***    ***
+ *              ***    ****   ***     ***   ***    ****   ********     **********
+ *
+ * O método get_cv_emails recebe uma query (um link URL com uma query de local e disciplina) e vai
+ * a cada um dos resultados (explicadores), abre a respetiva página de perfil e obtém o link para
+ * o CV.
+ *
+ * Não sei como queres obter o email a partir do link do CV. Ou seja, se queres:
+ *
+ * A) Obter o email um a um sempre que o método abrir a página de perfil de um explicador;
+ * B) A partir de uma array com os links, correr um método próprio para obter os emails.
+ *
+ * [Suponho que sejam estas as opções mas, como sabes, sou novo nisto]
+ *
+ * Neste momento tenho pensado na opção (A). Isto porque estou a fazer um registo na BD sempre que
+ * o método acaba de buscar o link para o CV no perfil do explicador. Mas é possível mudar suponho.
+ *
+ * Insere o teu código antes do « chrome.close(); » [linha 229]
+ *
+ * Obrigado ;)
+ *
+ ************************************************************************************************
+ ************************************************************************************************/
 
 public class Spider {
-    public static void get_profile_pages_urls(String currentUrl) {
+    public static void get_cv_emails(String currentUrl) {
         System.setProperty("webdriver.chrome.driver","C:\\Users\\gonca\\IdeaProjects\\exe\\chromedriver.exe");      // Get ChromeDriver
         WebDriver chrome = new ChromeDriver();
         chrome.get(currentUrl);
 
         /*
-         * Page of profile listing
+         * Window with the list of profiles
          */
-        String basePage = chrome.getWindowHandle();
+        String profileListWindow = chrome.getWindowHandle();
 
         /*
          * When subject is available in different levels of education, a modal appears. Close it
@@ -99,7 +126,7 @@ public class Spider {
         /*
          * MAIN LOOP: for each profile listed, open it in new window, get Url to CV, while navigating through profile list pages
          */
-        Set<String> cvUrls = new HashSet<>();
+        // Set<String> cvUrls = new HashSet<>(); // Apenas utilizado se se optar por (B) [ver topo]
         for (int k = 1; k <= listPagesCount; k++) {
             /*
              * Navigate to next profile list page
@@ -122,11 +149,37 @@ public class Spider {
                 }
             }
             /*
-             * Get links to profile Urls
+             * Go to each profile and retrieve the CV Url
              */
             int profilesCount = chrome.findElements(By.cssSelector("ul#results_list li")).size();
             System.out.println("Profiles in page: " + profilesCount);
             for (int m = 1; m <= profilesCount; m++) {
+                /*
+                 * These are the variables that we want to record in the DB. Listing for initialization and reset purposes
+                 */
+                String tutorType = "";
+                String tutorFullName = "";
+                String tutorFirstName = "";
+                String tutorLastName = "";
+                String profileUrl = "";
+                String cvUrl = "";
+
+                /*
+                 * Get profile Url for DB
+                 */
+                String profileUrlElementSelector = String.format("ul#results_list li:nth-child(%d) a", m);      // Needs to be out of function
+                profileUrl = wait.until(new Function<>() {
+                    public String apply(WebDriver chrome) {
+                        WebElement profileUrlElement = chrome.findElement(By.cssSelector(profileUrlElementSelector));
+                        return profileUrlElement.getAttribute("href");
+                    }
+                });
+
+                /*
+                 * Get profile type (tutor or study centre) for DB
+                 */
+                tutorType = profileUrl.substring(profileUrl.indexOf("op=") + 3, profileUrl.indexOf("&id="));
+
                 /*
                  * Open profile page on new window
                  */
@@ -155,56 +208,48 @@ public class Spider {
                     new WebDriverWait(chrome, 15).until(
                             webDriver -> ((JavascriptExecutor) webDriver).executeScript("return document.readyState").equals("complete"));
 
+                    /*
+                     * Get tutor full name and, if it's a person, split it to get first and last name, all for DB
+                     */
+                    try {
+                        tutorFullName = chrome.findElement(By.tagName("h1")).getText();
+                        if( tutorType.equals("explicador")) {
+                            String[] tutorFullNameArray = tutorFullName.split(" ");
+                            Integer numberOfNames = tutorFullNameArray.length;
+                            tutorFirstName = tutorFullNameArray[0];
+                            tutorLastName = tutorFullNameArray[numberOfNames - 1];
+                        }
+                    } catch (Exception e) {
+                        System.err.println(e.getMessage());
+                    }
+
                     try {
                         String cvOnClick = chrome.findElement(By.cssSelector("button.button.warning")).getAttribute("onclick");
-                        String cvUrl = cvOnClick.substring(cvOnClick.indexOf("('") + 2, cvOnClick.indexOf("','"));
-                        System.out.println("Found file with link to " + cvUrl);
-                        cvUrls.add(cvUrl);
+                        cvUrl = cvOnClick.substring(cvOnClick.indexOf("('") + 2, cvOnClick.indexOf("','"));
+                        // cvUrls.add(cvUrl); // Apenas utilizado se se optar por (B) [ver topo]
                     } catch (Exception e) {
-                        System.out.println("No CV found here.");
+                        System.err.println(e.getMessage());
                     }
                     chrome.close();
-                    chrome.switchTo().window(basePage);
-                    // profileUrls.add(profileUrl);
-                    // Hawk.get_cv_URL(profileUrl);
+                    chrome.switchTo().window(profileListWindow);
                 } else {
                     System.out.println("Could not open profile page.");
                 }
+
+                /*
+                 * Insert tutor data into database
+                 */
+                String[] recordData = {tutorType, tutorFullName, tutorFirstName, tutorLastName, profileUrl, cvUrl, "Colocar aqui email"};
+                SQLiteJDBC.insertToDB("tutors", recordData);
             }
-            System.out.println("CVs caught: " + cvUrls);
         }
-        // System.out.println("List of profile urls: " + profileUrls);
-        // chrome.close();
-        // return profileUrls;
+        chrome.close();
     }
-
-
-
-    public static String get_cv_URL( String profileUrl ) {
-        System.setProperty("webdriver.chrome.driver","C:\\Users\\gonca\\IdeaProjects\\exe\\chromedriver.exe");      // Get ChromeDriver
-        WebDriver chrome = new ChromeDriver();
-        chrome.get(profileUrl);
-        // try {
-        //     String cvOnClick = chrome.findElement(By.cssSelector("button.button.warning")).getAttribute("onclick");
-        //     String cvUrl = cvOnClick.substring(cvOnClick.indexOf("('") + 2, cvOnClick.indexOf("','"));
-        //     System.out.println("Found file with link to " + cvUrl);
-        //     chrome.close();
-        //     return cvUrl;
-        // } catch (Exception e) {
-        //     System.out.println(e.getMessage());
-        //     chrome.close();
-        //     return "Did nor find button here";
-        // }
-        return "Whatever";
-    }
-
-
-
 
     /**
      *  get_profile_links works, but now we're using selenium to get profile urls since we have to use javascript to manipulate search criteria and list navigation
      *
-     *  @deprecated use {@link #get_profile_pages_urls(String CurrentUrl)} instead
+     *  @deprecated use {@link #get_cv_emails(String CurrentUrl)} instead
      **/
     @Deprecated
     public static List<String> get_profile_links(Document webpage) {
