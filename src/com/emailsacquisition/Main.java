@@ -14,11 +14,44 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+
+/************************************************************************************************
+ ************************************************************************************************
+ *
+ *              *****   ***   ***********   *****   ***   ********     **********
+ *              ******  ***   ***     ***   ******  ***   ***    ***   ***    ***
+ *              *** *** ***   ***     ***   *** *** ***   ***    ***   ***    ***
+ *              ***  ******   ***********   ***  ******   ***    ***   ***    ***
+ *              ***    ****   ***     ***   ***    ****   ********     **********
+ *
+ * O método main gera uma query (um link URL com uma query de local e disciplina) e vai a cada
+ * um dos resultados (explicadores), abre a respetiva página de perfil e obtém o link para o CV.
+ *
+ * Não sei como queres obter o email a partir do link do CV. Ou seja, se queres:
+ *
+ * A) Obter o email um a um sempre que o método abrir a página de perfil de um explicador;
+ * B) A partir de uma array com os links, correr um método próprio para obter os emails.
+ *
+ * [Suponho que sejam estas as opções mas, como sabes, sou novo nisto]
+ *
+ * Neste momento tenho pensado a opção (A). Isto porque estou a fazer um registo na BD sempre que
+ * o método acaba de buscar o link para o CV no perfil do explicador. Mas é possível mudar suponho.
+ *
+ * Insere o teu código antes de:
+ *      258     chrome.close();
+ *      259     chrome.switchTo().window(profileListWindow);
+ *
+ * Obrigado ;)
+ *
+ ************************************************************************************************
+ ************************************************************************************************/
+
+
 public class Main {
 
     public static void main(String[] args) {
         System.setProperty("jsse.enableSNIExtension", "false"); // https://stackoverflow.com/questions/7615645/ssl-handshake-alert-unrecognized-name-error-since-upgrade-to-java-1-7-0
-        Set<String> profilesCrawled = new HashSet<>();
+        Set<String> profilesCrawled = new HashSet<>(); // keep track so as not to crawl the same profile a second time
         String[] locations = {"lisboa"};
         String[] subjects = {"ingles"};
         String[] recordData;
@@ -150,7 +183,7 @@ public class Main {
                         String cvUrl = "";
 
                         /*
-                         * Get profile Url for DB
+                         * Get profile Url for DB and to assess if profile has been crawled
                          */
                         String profileUrlElementSelector = String.format("ul#results_list li:nth-child(%d) a", m);      // Needs to be out of function
                         profileUrl = wait.until(new Function<>() {
@@ -159,7 +192,6 @@ public class Main {
                                 return profileUrlElement.getAttribute("href");
                             }
                         });
-
                         if (profilesCrawled.contains(profileUrl)) {
                             System.out.println("Profile already crawled: " + profileUrl);
                         } else {
